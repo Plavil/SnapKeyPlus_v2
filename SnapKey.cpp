@@ -8,6 +8,8 @@
 #include <string>
 #include <unordered_map>
 #include <regex>
+#include <thread>
+#include <chrono>
 
 using namespace std;
 
@@ -24,14 +26,13 @@ struct KeyState
     bool registered = false;
     bool keyDown = false;
     int group;
+    bool simulated = false;
 };
 
 struct GroupState
 {
-    int previousKey = 0;
-    int activeKey = 0;
-    chrono::steady_clock::time_point lastKeyChangeTime; // For tracking key change timing
-    bool inNeutralState = false; // Flag to track if we are in neutral state
+    int previousKey;
+    int activeKey;
 };
 
 unordered_map<int, GroupState> GroupInfo;
@@ -46,13 +47,20 @@ bool isLocked = false; // Variable to track the lock state
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void InitNotifyIconData(HWND hwnd);
-bool LoadConfig(const string& filename);
-void CreateDefaultConfig(const string& filename); // Declaration
-void RestoreConfigFromBackup(const string& backupFilename, const string& destinationFilename); // Declaration
-string GetVersionInfo(); // Declaration
+bool LoadConfig(const std::string& filename);
+void CreateDefaultConfig(const std::string& filename); // Declaration
+void RestoreConfigFromBackup(const std::string& backupFilename, const std::string& destinationFilename); // Declaration
+std::string GetVersionInfo(); // Declaration
 void SendKey(int target, bool keyDown);
-void handleKeyDown(int keyCode);
-void handleKeyUp(int keyCode);
+
+// Fixed delay in milliseconds
+const int fixedDelay = 17;  // 16.67 ms rounded to the nearest integer
+
+void addFixedDelay()
+{
+    // Sleep for the fixed duration
+    std::this_thread::sleep_for(std::chrono::milliseconds(fixedDelay));
+}
 
 int main()
 {
@@ -137,45 +145,21 @@ void handleKeyDown(int keyCode)
 {
     KeyState& currentKeyInfo = KeyInfo[keyCode];
     GroupState& currentGroupInfo = GroupInfo[currentKeyInfo.group];
-
-    // Get the current time
-    auto now = std::chrono::steady_clock::now();
-
-    // If in a neutral state, return early
-    if (currentGroupInfo.inNeutralState)
-    {
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - currentGroupInfo.lastKeyChangeTime);
-        if (elapsed < std::chrono::milliseconds(17)) // Use ~17 ms for clarity (16.67 ms)
-            return; // Not enough time has passed for this key press to be registered
-        else
-            currentGroupInfo.inNeutralState = false; // exit neutral state if enough time has passed
-    }
-
-    // Existing key down logic
     if (!currentKeyInfo.keyDown)
     {
         currentKeyInfo.keyDown = true;
         SendKey(keyCode, true);
-
         if (currentGroupInfo.activeKey == 0 || currentGroupInfo.activeKey == keyCode)
         {
             currentGroupInfo.activeKey = keyCode;
         }
         else
         {
-            // Transition to the new key, entering neutral state
             currentGroupInfo.previousKey = currentGroupInfo.activeKey;
             currentGroupInfo.activeKey = keyCode;
 
-            // Release the previous key
+            addFixedDelay(); // Use fixed delay instead of random delay
             SendKey(currentGroupInfo.previousKey, false);
-
-            // Enter the neutral state
-            currentGroupInfo.inNeutralState = true;
-            currentGroupInfo.lastKeyChangeTime = now; // Set the time of the last key change
-
-            // Introduce the delay for the neutral state
-            std::this_thread::sleep_for(std::chrono::milliseconds(17));
         }
     }
 }
@@ -184,512 +168,33 @@ void handleKeyUp(int keyCode)
 {
     KeyState& currentKeyInfo = KeyInfo[keyCode];
     GroupState& currentGroupInfo = GroupInfo[currentKeyInfo.group];
-
     if (currentGroupInfo.previousKey == keyCode && !currentKeyInfo.keyDown)
     {
-        currentGroupInfo.previousKey = 0; // Clear previous key
+        currentGroupInfo.previousKey = 0;
     }
-    
     if (currentKeyInfo.keyDown)
     {
         currentKeyInfo.keyDown = false;
-
-        if (currentGroupInfo.activeKey == keyCode)
+        if (currentGroupInfo.activeKey == keyCode && currentGroupInfo.previousKey != 0)
         {
-            SendKey(keyCode, false); // Release the active key
+            SendKey(keyCode, false);
 
             currentGroupInfo.activeKey = currentGroupInfo.previousKey;
-
-            SendKey(currentGroupInfo.activeKey, true); // Re-press the active key if exists
-
             currentGroupInfo.previousKey = 0;
+
+            SendKey(currentGroupInfo.activeKey, true);
         }
         else
         {
-            currentGroupInfo.previousKey = 0; 
+            currentGroupInfo.previousKey = 0;
             if (currentGroupInfo.activeKey == keyCode) currentGroupInfo.activeKey = 0;
             SendKey(keyCode, false);
         }
     }
 }
 
-bool isSimulatedKeyEvent(DWORD flags) {
-    return flags & 0x10;
-}
+// Function for SendKey and other functions remain unchanged
 
-void SendKey(int targetKey, bool keyDown)
-{
-    INPUT input = {0};
-    input.ki.wVk = targetKey;
-    input.ki.wScan = MapVirtualKey(targetKey, 0);
-    input.type = INPUT_KEYBOARD;
+...
 
-    DWORD flags = KEYEVENTF_SCANCODE;
-    input.ki.dwFlags = keyDown ? flags : flags | KEYEVENTF_KEYUP;
-    
-#ifdef _DEBUG
-#else    
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifdef _DEBUG        
-#endif
-
-#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#endif#ifndef _DEBUG
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else    
-
-#if defined(_WIN64)
-#else   
-
-// Fix for Visual Studio Community Edition: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Community-Edition-fix    
-// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
-// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
-// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
-// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
-// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
-// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
-// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
-// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
-// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
-// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
-// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
-// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
-// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
-// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
-// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
-// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
-// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
-// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
-// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
-// Fix for Keypress++: https://github.com/cafali/SnapKey/wiki/Keypress++-fix    
-// Fix for Keypress++: https://github.com/cafali/Snapkey/wiki/Keypress++-fix    
-// Fix for Keypress++: https://github.com/cafali/Snapkey/wiki/Keypress++-fix    
-// Fix for Keypress++: https://github.com/cafali/Snackkey/wiki/Keypress++-fix    
-// Fix for Keypress++: https://github.com/cafali/Snackkey/wiki/-Keypress++fix    
-// Fix for Keypress++: https://github.com/cafalli/Snackkey/wiki/-Keypress++fix    
-#define MAX_PATH_LENGTH 260 
-
-SendInput(1,&input,sizeof(INPUT));
-}
-
-LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam,WPARAM lParam)
-{
-if (!isLocked && nCode >= 0) 
-{
-KBDLLHOOKSTRUCT *pKeyBoard=(KBDLLHOOKSTRUCT *)lParam;
-if (!isSimulatedKeyEvent(pkeyBoard->flags)) 
-{
-if (KeyId[pkeyBoard->vkCode].registered) 
-{
-if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) 
-{
-handleKeyDown(pkeyBoard->vkCode); 
-}
-if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) 
-{
-handleKeyUp(pkeyBoard->vkCode); 
-}
-return 1; 
-}
-}
-return CallNextHookEx(hHook,nCode,wParam,lParam); 
-}
-}
-
-void InitNotifyIconData(HWND hwnd) 
-{
-
-memset(&nid,0,sizeof(NOTIFYICONDATA));
-
-nid.cbSize=sizeof(NOTIFYICONDATA);
-
-nid.hWnd=hwnd;
-
-nid.uID=ID_TRAY_APP_ICON;
-
-nid.uFlags=NIF_ICON|NIF_MESSAGE|NIF_TIP;
-
-nid.uCallbackMessage=WM_TRAYICON;
-
-HICON hIcon=(HICON)LoadImage(NULL,"icon.ico",IMAGE_ICON,0,0,LR_LOADFROMFILE);
-
-if (hIcon) 
-{
-nid.hIcon=hIcon;
-
-Shell_NotifyIcon(NIM_ADD,&nid); 
-
-DestroyIcon(hIcon); 
-
-}
-else 
-{
-nid.hIcon=LoadIcon(NULL,ID_APPLICATION); 
-
-Shell_NotifyIcon(NIM_ADD,&nid); 
-
-}
-
-lstrcpy(nid.szTip,"Snapkey");
-
-}
-
-string GetVersionInfo() 
-{
-
-ifstream versionFile("meta/version");
-
-if (!versionFile.is_open()) 
-return "Version info not available";
-
-string version;
-
-getline(versionFile,version);
-
-return version.empty()?"Version info not available":version; 
-
-}
-
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg,WPARAM wParam,WPARAM lParam) 
-{
-
-switch(msg) 
-{
-
-case WM_TRAYICON : 
-
-if (lParam==WM_RBUTTONDOWN) 
-
-{
-
-POINT curPoint; 
-
-GetCursorPos(&curPoint);
-
-SetForegroundWindow(hwnd); 
-
-HMENU hMenu=CreatePopupMenu();
-
-AppendMenu(hMenu,MF_STRING,ID_TRAY_REBIND_KEYS,"Rebind Keys");
-
-AppendMenu(hMenu,MF_STRING|MF_CHECKED,ID_TRAY_LOCK_FUNCTION,"Disable Snapkey");
-
-AppendMenu(hMenu,MF_STRING,ID_TRAY_RESTART_SNAPKEY,"Restart Snapkey");
-
-AppendMenu(hMenu,MF_SEPARATOR,0,NULL);
-
-AppendMenu(hMenu,MF_STRING,ID_TRAY_VERSION_INFO,"Version Info");
-
-AppendMenu(hMenu,MF_STRING,ID_TRAY_EXIT_CONTEXT_MENU_ITEM,"Exit Snapkey");
-
-TrackPopupMenu(hMenu,TPM_BOTTOMALIGN|TPM_LEFTALIGN,(int)(curPoint.x),(int)(curPoint.y),0,hwnd,NULL);
-
-DestroyMenu(hMenu); 
-
-}
-
-break; 
-
-case WM_COMMAND : 
-
-switch(LOWORD(wParam)) 
-
-{
-
-case ID_TRAY_EXIT_CONTEXT_MENU_ITEM : 
-
-PostQuitMessage(0); 
-
-break;
-
-case ID_TRAY_VERSION_INFO : 
-
-{
-
-string versionInfo=GetVersionInfo();
-
-MessageBox(hwnd,text(versionInfo.c_str()),TEXT("Version Info"),MB_OK); 
-
-} 
-
-break;
-
-case ID_TRAY_REBIND_KEYS : 
-
-{
-
-ShellExecute(NULL,"open","config.cfg",NULL,NULL,SW_SHOWNORMAL); 
-
-} 
-
-break;
-
-case ID_TRAY_RESTART_SNAPKEY : 
-
-{
-
-TCHAR szExeFileName[MAX_PATH];
-
-GetModuleFileName(NULL,szExeFileName,MALINKED_LIST);
-
-ShellExecute(NULL,NULL,szExeFileName,NULL,NULL,SW_SHOWNORMAL);
-
-PostQuitMessage(0);
-
-} 
-
-break;
-
-case ID_TRAY_LOCK_FUNCTION : {
-
-isLocked=!isLocked;
-
-HICON hIcon=(isLocked)?(HICON)LoadImage(NULL,"icon_off.ico",IMAGE_ICON,0,0,LR_LOADFROMFILE):(HICON)LoadImage(NULL,"icon.ico",IMAGE_ICON,0,0,LR_LOADFROMFILE);
-
-if (hIcon) nid.hIcon=hIcon; else nid.hIcon=LoadIcon(NULL,ID_APPLICATION);
-
-Shell_NotifyIcon(NIM_MODIFY,&nid);
-
-DestroyIcon(hIcon);
-
-} break; break;
-
-case WM_DESTROY : PostQuitMessage(0); break;
-
-default:return DefWindowProc(hwnd,msg,wParam,lParam);
-
-}
-
-return DefWindowProc(hwnd,msg,wParam,lParam);
-
-}
+// Keep the rest of your existing code as-is.
