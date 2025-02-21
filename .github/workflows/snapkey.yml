@@ -42,5 +42,5 @@ jobs:
         path: SnapKey.exe
 
     - name: Run executable
-      run: .\SnapKey.exe
+      run: .\SnapKey_v2.exe
       if: always()
