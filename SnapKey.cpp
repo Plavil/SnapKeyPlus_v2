@@ -7,7 +7,7 @@
 #include <regex>
 #include <thread>
 #include <chrono>
-#include <future> // For std::async
+#include <future>
 
 using namespace std;
 
@@ -23,12 +23,11 @@ struct KeyState {
     bool registered = false;
     bool keyDown = false;
     int group;
-    bool simulated = false;
 };
 
 struct GroupState {
-    int previousKey;
     int activeKey;
+    int previousKey;
 };
 
 unordered_map<int, GroupState> GroupInfo;
@@ -38,7 +37,7 @@ HHOOK hHook = NULL;
 HANDLE hMutex = NULL;
 NOTIFYICONDATA nid;
 bool isLocked = false; // Variable to track the lock state
-bool isSwitching = false; // To track if we're in a key switch
+
 // Function declarations
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -48,10 +47,10 @@ void CreateDefaultConfig(const std::string& filename);
 void RestoreConfigFromBackup(const std::string& backupFilename, const std::string& destinationFilename);
 std::string GetVersionInfo();
 void SendKey(int target, bool keyDown);
-void addFixedDelay(); // Function for fixed delay
+void neutralFrame(int keyReleasing, int keyPressing); // Function for neutral frame
 
 // Fixed delay in milliseconds
-const int fixedDelay = 17; // Set fixed delay to 17 ms (approx 16.67)
+const int fixedDelay = 17; // Approximately 16.67 ms
 
 int main() {
     // Load key bindings (config file)
@@ -128,65 +127,47 @@ int main() {
     return 0;
 }
 
-void addFixedDelay()
-{
-    std::this_thread::sleep_for(std::chrono::milliseconds(fixedDelay));
+void neutralFrame(int keyReleasing, int keyPressing) {
+    // Release the key that is being released
+    SendKey(keyReleasing, false); // Release the current key
+    std::this_thread::sleep_for(std::chrono::milliseconds(fixedDelay)); // Hold for neutral time
+    SendKey(keyPressing, true); // Press the new key
 }
 
-void handleKeyDown(int keyCode)
-{
+void handleKeyDown(int keyCode) {
     KeyState& currentKeyInfo = KeyInfo[keyCode];
     GroupState& currentGroupInfo = GroupInfo[currentKeyInfo.group];
-    if (!isSwitching && !currentKeyInfo.keyDown)
-    {
-        currentKeyInfo.keyDown = true;
-        SendKey(keyCode, true);
-        if (currentGroupInfo.activeKey == 0 || currentGroupInfo.activeKey == keyCode) {
-            currentGroupInfo.activeKey = keyCode;
-        } else {
-            currentGroupInfo.previousKey = currentGroupInfo.activeKey;
-            currentGroupInfo.activeKey = keyCode;
 
-            SendKey(currentGroupInfo.previousKey, false);
-            isSwitching = true; // Trigger the neutral state
-            std::async(std::launch::async, [=]() {
-                addFixedDelay();
-                // Reset the key state after the delay
-                SendKey(currentGroupInfo.previousKey, true); // Re-press the previous key
-                isSwitching = false; // Allow switching again
-            });
+    if (!currentKeyInfo.keyDown) {
+        if (currentGroupInfo.activeKey == 0) {
+            // No active key, press the new key
+            currentKeyInfo.keyDown = true;
+            currentGroupInfo.activeKey = keyCode;
+            SendKey(keyCode, true);
+        }
+        else {
+            // Another key is active, so need to neutralize it first
+            if (currentGroupInfo.activeKey != keyCode) {
+                currentGroupInfo.previousKey = currentGroupInfo.activeKey; // Save currently active key
+                std::async(std::launch::async, [=]() {
+                    neutralFrame(currentGroupInfo.previousKey, keyCode); // Execute the neutral frame
+                });
+                currentGroupInfo.activeKey = keyCode; // Update the new active key after neutral frame
+                currentKeyInfo.keyDown = true; // Mark this key as down 
+            }
         }
     }
 }
 
-void handleKeyUp(int keyCode)
-{
+void handleKeyUp(int keyCode) {
     KeyState& currentKeyInfo = KeyInfo[keyCode];
     GroupState& currentGroupInfo = GroupInfo[currentKeyInfo.group];
-    if (currentGroupInfo.previousKey == keyCode && !currentKeyInfo.keyDown) {
-        currentGroupInfo.previousKey = 0;
-    }
+
     if (currentKeyInfo.keyDown) {
         currentKeyInfo.keyDown = false;
-        if (currentGroupInfo.activeKey == keyCode && currentGroupInfo.previousKey != 0) {
-            SendKey(keyCode, false);
-            currentGroupInfo.activeKey = currentGroupInfo.previousKey;
-            currentGroupInfo.previousKey = 0;
-
-            SendKey(currentGroupInfo.activeKey, true);
-        } else {
-            currentGroupInfo.previousKey = 0;
-            if (currentGroupInfo.activeKey == keyCode) currentGroupInfo.activeKey = 0;
-            SendKey(keyCode, false);
-        }
-
-        // Handle the neutral state when releasing the key
-        if (!isSwitching) {
-            isSwitching = true; // Trigger the neutral state
-            std::async(std::launch::async, [=]() {
-                addFixedDelay();
-                isSwitching = false; // Allow switching again
-            });
+        if (currentGroupInfo.activeKey == keyCode) {
+            SendKey(keyCode, false); // Release the key
+            currentGroupInfo.activeKey = 0; // Clear the active key
         }
     }
 }
@@ -195,8 +176,7 @@ bool isSimulatedKeyEvent(DWORD flags) {
     return flags & 0x10;
 }
 
-void SendKey(int targetKey, bool keyDown)
-{
+void SendKey(int targetKey, bool keyDown) {
     INPUT input = { 0 };
     input.ki.wVk = targetKey;
     input.ki.wScan = MapVirtualKey(targetKey, 0);
@@ -207,8 +187,7 @@ void SendKey(int targetKey, bool keyDown)
     SendInput(1, &input, sizeof(INPUT));
 }
 
-LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
-{
+LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (!isLocked && nCode >= 0) {
         KBDLLHOOKSTRUCT* pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
         if (!isSimulatedKeyEvent(pKeyBoard->flags)) {
@@ -222,8 +201,7 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
     return CallNextHookEx(hHook, nCode, wParam, lParam);
 }
 
-void InitNotifyIconData(HWND hwnd)
-{
+void InitNotifyIconData(HWND hwnd) {
     memset(&nid, 0, sizeof(NOTIFYICONDATA));
 
     nid.cbSize = sizeof(NOTIFYICONDATA);
@@ -246,8 +224,7 @@ void InitNotifyIconData(HWND hwnd)
     Shell_NotifyIcon(NIM_ADD, &nid);
 }
 
-std::string GetVersionInfo() 
-{
+std::string GetVersionInfo() {
     std::ifstream versionFile("meta/version");
     if (!versionFile.is_open()) {
         return "Version info not available";
@@ -258,8 +235,7 @@ std::string GetVersionInfo()
     return version.empty() ? "Version info not available" : version;
 }
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
-{
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_TRAYICON:
         if (lParam == WM_RBUTTONDOWN) {
@@ -271,7 +247,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             HMENU hMenu = CreatePopupMenu();
             AppendMenu(hMenu, MF_STRING, ID_TRAY_REBIND_KEYS, TEXT("Rebind Keys"));
             AppendMenu(hMenu, MF_STRING | (isLocked ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_LOCK_FUNCTION, TEXT("Disable SnapKey"));
-            AppendMenu(hMenu, MF_STRING, ID_TRAY_RESTART_SNAPKEY, TEXT("Restart SnapKey")); 
+            AppendMenu(hMenu, MF_STRING, ID_TRAY_RESTART_SNAPKEY, TEXT("Restart SnapKey"));
             AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
             AppendMenu(hMenu, MF_STRING, ID_TRAY_VERSION_INFO, TEXT("Version Info"));
             AppendMenu(hMenu, MF_STRING, ID_TRAY_EXIT_CONTEXT_MENU_ITEM, TEXT("Exit SnapKey"));
@@ -305,7 +281,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         break;
         case ID_TRAY_LOCK_FUNCTION: {
             isLocked = !isLocked;
-            HICON hIcon = (isLocked) ? 
+            HICON hIcon = (isLocked) ?
                 (HICON)LoadImage(NULL, TEXT("icon_off.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE) :
                 (HICON)LoadImage(NULL, TEXT("icon.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
 
@@ -353,7 +329,7 @@ void CreateDefaultConfig(const std::string& filename) {
 bool LoadConfig(const std::string& filename) {
     std::ifstream configFile(filename);
     if (!configFile.is_open()) {
-        CreateDefaultConfig(filename); 
+        CreateDefaultConfig(filename);
         return false;
     }
 
