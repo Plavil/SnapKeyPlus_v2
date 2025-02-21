@@ -194,7 +194,4 @@ void handleKeyUp(int keyCode)
 }
 
 // Function for SendKey and other functions remain unchanged
-
-...
-
 // Keep the rest of your existing code as-is.
