@@ -1,4 +1,4 @@
-// SnapKey 1.2.6
+// SnapKey 1.2.5
 // github.com/cafali/SnapKey
 
 #include <windows.h>
@@ -8,9 +8,8 @@
 #include <string>
 #include <unordered_map>
 #include <regex>
-#include <random>
-#include <thread>
-#include <chrono>
+#include <thread> // Include for std::this_thread
+#include <chrono> // Include for std::chrono
 
 using namespace std;
 
@@ -49,28 +48,14 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void InitNotifyIconData(HWND hwnd);
 bool LoadConfig(const std::string& filename);
-void CreateDefaultConfig(const std::string& filename); // Declaration
-void RestoreConfigFromBackup(const std::string& backupFilename, const std::string& destinationFilename); // Declaration
-std::string GetVersionInfo(); // Declaration
+void CreateDefaultConfig(const std::string& filename);
+void RestoreConfigFromBackup(const std::string& backupFilename, const std::string& destinationFilename);
+std::string GetVersionInfo();
 void SendKey(int target, bool keyDown);
+void addFixedDelay(); // Function to add a fixed delay
 
-// Random delay settings
-int minDelay = 10;
-int maxDelay = 60;
-
-void addRandomDelay()
-{
-    // Create a random number generator
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(minDelay, maxDelay);
-
-    // Generate a random delay duration
-    int delayDuration = dis(gen);
-
-    // Sleep for the random duration
-    std::this_thread::sleep_for(std::chrono::milliseconds(delayDuration));
-}
+// Fixed delay in milliseconds
+const int fixedDelay = 16; // Set a fixed delay
 
 int main()
 {
@@ -151,6 +136,12 @@ int main()
     return 0;
 }
 
+void addFixedDelay()
+{
+    // Sleep for the fixed duration
+    std::this_thread::sleep_for(std::chrono::milliseconds(fixedDelay));
+}
+
 void handleKeyDown(int keyCode)
 {
     KeyState& currentKeyInfo = KeyInfo[keyCode];
@@ -168,9 +159,11 @@ void handleKeyDown(int keyCode)
             currentGroupInfo.previousKey = currentGroupInfo.activeKey;
             currentGroupInfo.activeKey = keyCode;
 
-            addRandomDelay(); // Add a random delay before sending the key
             SendKey(currentGroupInfo.previousKey, false);
         }
+
+        // Add fixed delay after the key down event
+        addFixedDelay();
     }
 }
 
@@ -200,6 +193,9 @@ void handleKeyUp(int keyCode)
             if (currentGroupInfo.activeKey == keyCode) currentGroupInfo.activeKey = 0;
             SendKey(keyCode, false);
         }
+
+        // Add fixed delay after the key up event
+        addFixedDelay();
     }
 }
 
@@ -290,7 +286,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             HMENU hMenu = CreatePopupMenu();
             AppendMenu(hMenu, MF_STRING, ID_TRAY_REBIND_KEYS, TEXT("Rebind Keys"));
             AppendMenu(hMenu, MF_STRING | (isLocked ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_LOCK_FUNCTION, TEXT("Disable SnapKey"));
-            AppendMenu(hMenu, MF_STRING, ID_TRAY_RESTART_SNAPKEY, TEXT("Restart SnapKey"));
+            AppendMenu(hMenu, MF_STRING, ID_TRAY_RESTART_SNAPKEY, TEXT("Restart SnapKey")); //SnapKey 1.2.5 
             AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
             AppendMenu(hMenu, MF_STRING, ID_TRAY_VERSION_INFO, TEXT("Version Info"));
             AppendMenu(hMenu, MF_STRING, ID_TRAY_EXIT_CONTEXT_MENU_ITEM, TEXT("Exit SnapKey"));
@@ -298,35 +294,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             // Display the context menu
             TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, curPoint.x, curPoint.y, 0, hwnd, NULL);
             DestroyMenu(hMenu);
-        }
-        else if (lParam == WM_LBUTTONDBLCLK) //double-click tray icon
-        {
-            // Toggle lock state
-            isLocked = !isLocked;
-
-            // Update the tray icon
-            if (isLocked)
-            {
-                // Load icon_off.ico (OFF)
-                HICON hIconOff = (HICON)LoadImage(NULL, TEXT("icon_off.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-                if (hIconOff)
-                {
-                    nid.hIcon = hIconOff;
-                    Shell_NotifyIcon(NIM_MODIFY, &nid);
-                    DestroyIcon(hIconOff);
-                }
-            }
-            else
-            {
-                // Load icon.ico (ON)
-                HICON hIconOn = (HICON)LoadImage(NULL, TEXT("icon.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-                if (hIconOn)
-                {
-                    nid.hIcon = hIconOn;
-                    Shell_NotifyIcon(NIM_MODIFY, &nid);
-                    DestroyIcon(hIconOn);
-                }
-            }
         }
         break;
 
@@ -340,34 +307,56 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             {
                 std::string versionInfo = GetVersionInfo();
                 MessageBox(hwnd, versionInfo.c_str(), TEXT("Version Info"), MB_OK);
-                
             }
             break;
         case ID_TRAY_REBIND_KEYS:
             {
+                // Open the config file with the default text editor
                 ShellExecute(NULL, TEXT("open"), TEXT("config.cfg"), NULL, NULL, SW_SHOWNORMAL);
             }
             break;
-        case ID_TRAY_RESTART_SNAPKEY:
+        case ID_TRAY_RESTART_SNAPKEY: //SnapKey 1.2.5 - Restart via context menu
             {
+                // Restart
                 TCHAR szExeFileName[MAX_PATH];
                 GetModuleFileName(NULL, szExeFileName, MAX_PATH);
                 ShellExecute(NULL, NULL, szExeFileName, NULL, NULL, SW_SHOWNORMAL);
+
+                // Quit current SnapKey instance
                 PostQuitMessage(0);
             }
             break;
         case ID_TRAY_LOCK_FUNCTION:
             {
                 isLocked = !isLocked;
-                HICON hIcon = isLocked
-                    ? (HICON)LoadImage(NULL, TEXT("icon_off.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE)
-                    : (HICON)LoadImage(NULL, TEXT("icon.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-                if (hIcon)
+
+                // Update the tray icon (Disable SnapKey) (OFF/ON)
+                if (isLocked)
                 {
-                    nid.hIcon = hIcon;
-                    Shell_NotifyIcon(NIM_MODIFY, &nid);
-                    DestroyIcon(hIcon);
+                    // Load icon_off.ico (OFF)
+                    HICON hIconOff = (HICON)LoadImage(NULL, TEXT("icon_off.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
+                    if (hIconOff)
+                    {
+                        nid.hIcon = hIconOff;
+                        Shell_NotifyIcon(NIM_MODIFY, &nid);
+                        DestroyIcon(hIconOff);
+                    }
                 }
+                else
+                {
+                    // Load icon.ico (ON)
+                    HICON hIconOn = (HICON)LoadImage(NULL, TEXT("icon.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
+                    if (hIconOn)
+                    {
+                        nid.hIcon = hIconOn;
+                        Shell_NotifyIcon(NIM_MODIFY, &nid);
+                        DestroyIcon(hIconOn); 
+                    }
+                }
+
+                // Update the context menu item to reflect the new lock state
+                HMENU hMenu = GetSubMenu(GetMenu(hwnd), 0);
+                CheckMenuItem(hMenu, ID_TRAY_LOCK_FUNCTION, MF_BYCOMMAND | (isLocked ? MF_CHECKED : MF_UNCHECKED));
             }
             break;
         }
@@ -391,11 +380,11 @@ void RestoreConfigFromBackup(const std::string& backupFilename, const std::strin
 
     if (CopyFile(sourcePath.c_str(), destinationPath.c_str(), FALSE)) {
         // Copy successful
-        MessageBox(NULL, TEXT("Default config restored from backup successfully."), TEXT("SnapKey"), MB_ICONINFORMATION | MB_OK);
+        MessageBox(NULL, TEXT(" Default config restored from backup successfully."), TEXT("SnapKey"), MB_ICONINFORMATION | MB_OK);
     } else {
         // backup.snapkey copy failed
         DWORD error = GetLastError();
-        std::string errorMsg = "Failed to restore config from backup.";
+        std::string errorMsg = " Failed to restore config from backup.";
         MessageBox(NULL, errorMsg.c_str(), TEXT("SnapKey Error"), MB_ICONERROR | MB_OK);
     }
 }
@@ -442,15 +431,6 @@ bool LoadConfig(const std::string& filename)
                     MessageBox(NULL, TEXT("For more information, please view the README file or visit github.com/cafali/SnapKey/wiki."), TEXT("SnapKey Error"), MB_ICONINFORMATION | MB_OK);
                     return false;
                 }
-            }
-        }
-        if (line.find("random_delay_ms=") == 0)
-        {
-            std::smatch match;
-            std::regex delayPattern(R"(\s*(\d+)\s*,\s*(\d+)\s*)");
-            if (std::regex_search(line, match, delayPattern) && match.size()) {
-                minDelay = std::stoi(match[1].str());
-                maxDelay = std::stoi(match[2].str());
             }
         }
     }
