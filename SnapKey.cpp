@@ -20,6 +20,7 @@ using namespace std;
 #define ID_TRAY_RESTART_SNAPKEY         3004
 #define WM_TRAYICON                     (WM_USER + 1)
 
+// Key state structure
 struct KeyState
 {
     bool registered = false;
@@ -28,19 +29,20 @@ struct KeyState
     bool simulated = false;
 };
 
+// Group state structure
 struct GroupState
 {
     int previousKey = 0;
     int activeKey = 0;
 };
 
-unordered_map<int, GroupState> GroupInfo;
-unordered_map<int, KeyState> KeyInfo;
+unordered_map<int, GroupState> GroupInfo; // Group states
+unordered_map<int, KeyState> KeyInfo; // Key states
 
-HHOOK hHook = NULL;
-HANDLE hMutex = NULL;
-NOTIFYICONDATA nid;
-bool isLocked = false; // Variable to track the lock state
+HHOOK hHook = NULL; // Hook handle
+HANDLE hMutex = NULL; // Mutex handle
+NOTIFYICONDATA nid; // Notification icon data
+bool isLocked = false; // Lock state tracking
 
 // Neutral frame definitions
 const int NEUTRAL_FRAME_DURATION = 16; // Neutral frame delay in milliseconds
@@ -56,6 +58,7 @@ void RestoreConfigFromBackup(const std::string& backupFilename, const std::strin
 std::string GetVersionInfo(); // Declaration
 void SendKey(int target, bool keyDown);
 
+// Main function
 int main()
 {
     // Load key bindings (config file)
@@ -135,6 +138,7 @@ int main()
     return 0;
 }
 
+// Handle key down events
 void handleKeyDown(int keyCode)
 {
     // Get the current time
@@ -142,15 +146,15 @@ void handleKeyDown(int keyCode)
 
     // Check if there has been enough time since the last switch
     // Special case for A <-> D and W <-> S
-    if ((keyCode == VK_D || keyCode == VK_A) && 
-        (KeyInfo[VK_D].keyDown || KeyInfo[VK_A].keyDown)) 
+    if ((keyCode == 'D' || keyCode == 'A') && 
+        (KeyInfo['D'].keyDown || KeyInfo['A'].keyDown)) 
     {
         if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSwitchTime).count() < NEUTRAL_FRAME_DURATION) {
             return; // Not enough time has passed, ignore this key press
         }
     } 
-    else if ((keyCode == VK_S || keyCode == VK_W) && 
-              (KeyInfo[VK_S].keyDown || KeyInfo[VK_W].keyDown))
+    else if ((keyCode == 'S' || keyCode == 'W') && 
+              (KeyInfo['S'].keyDown || KeyInfo['W'].keyDown))
     {
         if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSwitchTime).count() < NEUTRAL_FRAME_DURATION) {
             return; // Not enough time has passed, ignore this key press
@@ -182,6 +186,7 @@ void handleKeyDown(int keyCode)
     }
 }
 
+// Handle key up events
 void handleKeyUp(int keyCode)
 {
     KeyState& currentKeyInfo = KeyInfo[keyCode];
@@ -211,10 +216,12 @@ void handleKeyUp(int keyCode)
     }
 }
 
+// Check if the key event is simulated
 bool isSimulatedKeyEvent(DWORD flags) {
     return flags & 0x10;
 }
 
+// Send a key event
 void SendKey(int targetKey, bool keyDown)
 {
     INPUT input = {0};
@@ -227,16 +234,17 @@ void SendKey(int targetKey, bool keyDown)
     SendInput(1, &input, sizeof(INPUT));
 }
 
+// Keyboard hook procedure
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (!isLocked && nCode >= 0)
     {
         KBDLLHOOKSTRUCT *pKeyBoard = (KBDLLHOOKSTRUCT *)lParam;
-        if (!isSimulatedKeyEvent(pKeyBoard -> flags)) {
-            if (KeyInfo[pKeyBoard -> vkCode].registered)
+        if (!isSimulatedKeyEvent(pKeyBoard->flags)) {
+            if (KeyInfo[pKeyBoard->vkCode].registered)
             {
-                if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) handleKeyDown(pKeyBoard -> vkCode);
-                if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) handleKeyUp(pKeyBoard -> vkCode);
+                if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) handleKeyDown(pKeyBoard->vkCode);
+                if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) handleKeyUp(pKeyBoard->vkCode);
                 return 1;
             }
         }
@@ -244,6 +252,7 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
     return CallNextHookEx(hHook, nCode, wParam, lParam);
 }
 
+// Initialize the notify icon data for the system tray
 void InitNotifyIconData(HWND hwnd)
 {
     memset(&nid, 0, sizeof(NOTIFYICONDATA));
@@ -271,10 +280,12 @@ void InitNotifyIconData(HWND hwnd)
     Shell_NotifyIcon(NIM_ADD, &nid);
 }
 
-std::string GetVersionInfo() // Get version info
+// Get version information
+std::string GetVersionInfo()
 {
     std::ifstream versionFile("meta/version");
-    if (!versionFile.is_open()) {
+    if (!versionFile.is_open())
+    {
         return "Version info not available";
     }
 
@@ -283,6 +294,7 @@ std::string GetVersionInfo() // Get version info
     return version.empty() ? "Version info not available" : version;
 }
 
+// Window procedure for handling messages
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -307,7 +319,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, curPoint.x, curPoint.y, 0, hwnd, NULL);
             DestroyMenu(hMenu);
         }
-        else if (lParam == WM_LBUTTONDBLCLK) //double-click tray icon
+        else if (lParam == WM_LBUTTONDBLCLK) // Double-click tray icon
         {
             // Toggle lock state
             isLocked = !isLocked;
