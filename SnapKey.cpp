@@ -1,3 +1,6 @@
+// SnapKey 1.2.6
+// github.com/cafali/SnapKey
+
 #include <windows.h>
 #include <shellapi.h>
 #include <fstream>
@@ -5,9 +8,7 @@
 #include <string>
 #include <unordered_map>
 #include <regex>
-#include <thread>
 #include <chrono>
-#include <future>
 
 using namespace std;
 
@@ -19,15 +20,18 @@ using namespace std;
 #define ID_TRAY_RESTART_SNAPKEY         3004
 #define WM_TRAYICON                     (WM_USER + 1)
 
-struct KeyState {
+struct KeyState
+{
     bool registered = false;
     bool keyDown = false;
     int group;
+    bool simulated = false;
 };
 
-struct GroupState {
-    int activeKey;
+struct GroupState
+{
     int previousKey;
+    int activeKey;
 };
 
 unordered_map<int, GroupState> GroupInfo;
@@ -38,21 +42,22 @@ HANDLE hMutex = NULL;
 NOTIFYICONDATA nid;
 bool isLocked = false; // Variable to track the lock state
 
+// Neutral frame definitions
+const int NEUTRAL_FRAME_DURATION = 16; // Neutral frame delay in milliseconds
+std::chrono::steady_clock::time_point lastSwitchTime;
+
 // Function declarations
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void InitNotifyIconData(HWND hwnd);
 bool LoadConfig(const std::string& filename);
-void CreateDefaultConfig(const std::string& filename);
-void RestoreConfigFromBackup(const std::string& backupFilename, const std::string& destinationFilename);
-std::string GetVersionInfo();
+void CreateDefaultConfig(const std::string& filename); // Declaration
+void RestoreConfigFromBackup(const std::string& backupFilename, const std::string& destinationFilename); // Declaration
+std::string GetVersionInfo(); // Declaration
 void SendKey(int target, bool keyDown);
-void neutralFrame(int keyReleasing, int keyPressing); // Function for neutral frame
 
-// Fixed delay in milliseconds
-const int fixedDelay = 17; // Approximately 16.67 ms
-
-int main() {
+int main()
+{
     // Load key bindings (config file)
     if (!LoadConfig("config.cfg")) {
         return 1;
@@ -60,13 +65,14 @@ int main() {
 
     // One instance restriction
     hMutex = CreateMutex(NULL, TRUE, TEXT("SnapKeyMutex"));
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+    if (GetLastError() == ERROR_ALREADY_EXISTS)
+    {
         MessageBox(NULL, TEXT("SnapKey is already running!"), TEXT("SnapKey"), MB_ICONINFORMATION | MB_OK);
         return 1; // Exit the program
     }
 
     // Create a window class
-    WNDCLASSEX wc = { 0 };
+    WNDCLASSEX wc = {0};
     wc.cbSize = sizeof(WNDCLASSEX);
     wc.lpfnWndProc = WndProc;
     wc.hInstance = GetModuleHandle(NULL);
@@ -100,7 +106,8 @@ int main() {
 
     // Set the hook
     hHook = SetWindowsHookEx(WH_KEYBOARD_LL, KeyboardProc, NULL, 0);
-    if (hHook == NULL) {
+    if (hHook == NULL)
+    {
         MessageBox(NULL, TEXT("Failed to install hook!"), TEXT("Error"), MB_ICONEXCLAMATION | MB_OK);
         ReleaseMutex(hMutex);
         CloseHandle(hMutex);
@@ -109,7 +116,8 @@ int main() {
 
     // Message loop
     MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0)) {
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
@@ -127,47 +135,65 @@ int main() {
     return 0;
 }
 
-void neutralFrame(int keyReleasing, int keyPressing) {
-    // Release the key that is being released
-    SendKey(keyReleasing, false); // Release the current key
-    std::this_thread::sleep_for(std::chrono::milliseconds(fixedDelay)); // Hold for neutral time
-    SendKey(keyPressing, true); // Press the new key
-}
+void handleKeyDown(int keyCode)
+{
+    auto now = std::chrono::steady_clock::now();
 
-void handleKeyDown(int keyCode) {
+    // Check if there has been enough time since the last switch
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSwitchTime).count() < NEUTRAL_FRAME_DURATION) {
+        return; // Not enough time has passed, ignore this key press
+    }
+
     KeyState& currentKeyInfo = KeyInfo[keyCode];
     GroupState& currentGroupInfo = GroupInfo[currentKeyInfo.group];
 
-    if (!currentKeyInfo.keyDown) {
-        if (currentGroupInfo.activeKey == 0) {
-            // No active key, press the new key
-            currentKeyInfo.keyDown = true;
+    if (!currentKeyInfo.keyDown)
+    {
+        currentKeyInfo.keyDown = true;
+        SendKey(keyCode, true);
+        
+        if (currentGroupInfo.activeKey == 0 || currentGroupInfo.activeKey == keyCode)
+        {
             currentGroupInfo.activeKey = keyCode;
-            SendKey(keyCode, true);
         }
-        else {
-            // Another key is active, so need to neutralize it first
-            if (currentGroupInfo.activeKey != keyCode) {
-                currentGroupInfo.previousKey = currentGroupInfo.activeKey; // Save currently active key
-                std::async(std::launch::async, [=]() {
-                    neutralFrame(currentGroupInfo.previousKey, keyCode); // Execute the neutral frame
-                });
-                currentGroupInfo.activeKey = keyCode; // Update the new active key after neutral frame
-                currentKeyInfo.keyDown = true; // Mark this key as down 
-            }
+        else
+        {
+            currentGroupInfo.previousKey = currentGroupInfo.activeKey;
+            currentGroupInfo.activeKey = keyCode;
+
+            SendKey(currentGroupInfo.previousKey, false);
+
+            // Update last switch time here after a valid switch
+            lastSwitchTime = std::chrono::steady_clock::now();  
         }
     }
 }
 
-void handleKeyUp(int keyCode) {
+void handleKeyUp(int keyCode)
+{
     KeyState& currentKeyInfo = KeyInfo[keyCode];
     GroupState& currentGroupInfo = GroupInfo[currentKeyInfo.group];
-
-    if (currentKeyInfo.keyDown) {
+    if (currentGroupInfo.previousKey == keyCode && !currentKeyInfo.keyDown)
+    {
+        currentGroupInfo.previousKey = 0;
+    }
+    if (currentKeyInfo.keyDown)
+    {
         currentKeyInfo.keyDown = false;
-        if (currentGroupInfo.activeKey == keyCode) {
-            SendKey(keyCode, false); // Release the key
-            currentGroupInfo.activeKey = 0; // Clear the active key
+        if (currentGroupInfo.activeKey == keyCode && currentGroupInfo.previousKey != 0)
+        {
+            SendKey(keyCode, false);
+
+            currentGroupInfo.activeKey = currentGroupInfo.previousKey;
+            currentGroupInfo.previousKey = 0;
+
+            SendKey(currentGroupInfo.activeKey, true);
+        }
+        else
+        {
+            currentGroupInfo.previousKey = 0;
+            if (currentGroupInfo.activeKey == keyCode) currentGroupInfo.activeKey = 0;
+            SendKey(keyCode, false);
         }
     }
 }
@@ -176,8 +202,9 @@ bool isSimulatedKeyEvent(DWORD flags) {
     return flags & 0x10;
 }
 
-void SendKey(int targetKey, bool keyDown) {
-    INPUT input = { 0 };
+void SendKey(int targetKey, bool keyDown)
+{
+    INPUT input = {0};
     input.ki.wVk = targetKey;
     input.ki.wScan = MapVirtualKey(targetKey, 0);
     input.type = INPUT_KEYBOARD;
@@ -187,13 +214,16 @@ void SendKey(int targetKey, bool keyDown) {
     SendInput(1, &input, sizeof(INPUT));
 }
 
-LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
-    if (!isLocked && nCode >= 0) {
-        KBDLLHOOKSTRUCT* pKeyBoard = (KBDLLHOOKSTRUCT*)lParam;
-        if (!isSimulatedKeyEvent(pKeyBoard->flags)) {
-            if (KeyInfo[pKeyBoard->vkCode].registered) {
-                if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) handleKeyDown(pKeyBoard->vkCode);
-                if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) handleKeyUp(pKeyBoard->vkCode);
+LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (!isLocked && nCode >= 0)
+    {
+        KBDLLHOOKSTRUCT *pKeyBoard = (KBDLLHOOKSTRUCT *)lParam;
+        if (!isSimulatedKeyEvent(pKeyBoard -> flags)) {
+            if (KeyInfo[pKeyBoard -> vkCode].registered)
+            {
+                if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) handleKeyDown(pKeyBoard -> vkCode);
+                if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) handleKeyUp(pKeyBoard -> vkCode);
                 return 1;
             }
         }
@@ -201,7 +231,8 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     return CallNextHookEx(hHook, nCode, wParam, lParam);
 }
 
-void InitNotifyIconData(HWND hwnd) {
+void InitNotifyIconData(HWND hwnd)
+{
     memset(&nid, 0, sizeof(NOTIFYICONDATA));
 
     nid.cbSize = sizeof(NOTIFYICONDATA);
@@ -212,9 +243,12 @@ void InitNotifyIconData(HWND hwnd) {
 
     // Load the tray icon (current directory)
     HICON hIcon = (HICON)LoadImage(NULL, TEXT("icon.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-    if (hIcon) {
+    if (hIcon)
+    {
         nid.hIcon = hIcon;
-    } else {
+    }
+    else
+    {
         // If loading the icon fails, fallback to a default icon
         nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     }
@@ -224,7 +258,8 @@ void InitNotifyIconData(HWND hwnd) {
     Shell_NotifyIcon(NIM_ADD, &nid);
 }
 
-std::string GetVersionInfo() {
+std::string GetVersionInfo() // Get version info
+{
     std::ifstream versionFile("meta/version");
     if (!versionFile.is_open()) {
         return "Version info not available";
@@ -235,10 +270,13 @@ std::string GetVersionInfo() {
     return version.empty() ? "Version info not available" : version;
 }
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg) {
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg)
+    {
     case WM_TRAYICON:
-        if (lParam == WM_RBUTTONDOWN) {
+        if (lParam == WM_RBUTTONDOWN)
+        {
             POINT curPoint;
             GetCursorPos(&curPoint);
             SetForegroundWindow(hwnd);
@@ -256,45 +294,76 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, curPoint.x, curPoint.y, 0, hwnd, NULL);
             DestroyMenu(hMenu);
         }
+        else if (lParam == WM_LBUTTONDBLCLK) //double-click tray icon
+        {
+            // Toggle lock state
+            isLocked = !isLocked;
+
+            // Update the tray icon
+            if (isLocked)
+            {
+                // Load icon_off.ico (OFF)
+                HICON hIconOff = (HICON)LoadImage(NULL, TEXT("icon_off.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
+                if (hIconOff)
+                {
+                    nid.hIcon = hIconOff;
+                    Shell_NotifyIcon(NIM_MODIFY, &nid);
+                    DestroyIcon(hIconOff);
+                }
+            }
+            else
+            {
+                // Load icon.ico (ON)
+                HICON hIconOn = (HICON)LoadImage(NULL, TEXT("icon.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
+                if (hIconOn)
+                {
+                    nid.hIcon = hIconOn;
+                    Shell_NotifyIcon(NIM_MODIFY, &nid);
+                    DestroyIcon(hIconOn);
+                }
+            }
+        }
         break;
 
     case WM_COMMAND:
-        switch (LOWORD(wParam)) {
+        switch (LOWORD(wParam))
+        {
         case ID_TRAY_EXIT_CONTEXT_MENU_ITEM:
             PostQuitMessage(0);
             break;
-        case ID_TRAY_VERSION_INFO: {
-            std::string versionInfo = GetVersionInfo();
-            MessageBox(hwnd, versionInfo.c_str(), TEXT("Version Info"), MB_OK);
-        }
-        break;
-        case ID_TRAY_REBIND_KEYS: {
-            ShellExecute(NULL, TEXT("open"), TEXT("config.cfg"), NULL, NULL, SW_SHOWNORMAL);
-        }
-        break;
-        case ID_TRAY_RESTART_SNAPKEY: {
-            TCHAR szExeFileName[MAX_PATH];
-            GetModuleFileName(NULL, szExeFileName, MAX_PATH);
-            ShellExecute(NULL, NULL, szExeFileName, NULL, NULL, SW_SHOWNORMAL);
-            PostQuitMessage(0);
-        }
-        break;
-        case ID_TRAY_LOCK_FUNCTION: {
-            isLocked = !isLocked;
-            HICON hIcon = (isLocked) ?
-                (HICON)LoadImage(NULL, TEXT("icon_off.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE) :
-                (HICON)LoadImage(NULL, TEXT("icon.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-
-            if (hIcon) {
-                nid.hIcon = hIcon;
-                Shell_NotifyIcon(NIM_MODIFY, &nid);
-                DestroyIcon(hIcon);
+        case ID_TRAY_VERSION_INFO:
+            {
+                std::string versionInfo = GetVersionInfo();
+                MessageBox(hwnd, versionInfo.c_str(), TEXT("Version Info"), MB_OK);
             }
-
-            HMENU hMenu = GetSubMenu(GetMenu(hwnd), 0);
-            CheckMenuItem(hMenu, ID_TRAY_LOCK_FUNCTION, MF_BYCOMMAND | (isLocked ? MF_CHECKED : MF_UNCHECKED));
-        }
-        break;
+            break;
+        case ID_TRAY_REBIND_KEYS:
+            {
+                ShellExecute(NULL, TEXT("open"), TEXT("config.cfg"), NULL, NULL, SW_SHOWNORMAL);
+            }
+            break;
+        case ID_TRAY_RESTART_SNAPKEY:
+            {
+                TCHAR szExeFileName[MAX_PATH];
+                GetModuleFileName(NULL, szExeFileName, MAX_PATH);
+                ShellExecute(NULL, NULL, szExeFileName, NULL, NULL, SW_SHOWNORMAL);
+                PostQuitMessage(0);
+            }
+            break;
+        case ID_TRAY_LOCK_FUNCTION:
+            {
+                isLocked = !isLocked;
+                HICON hIcon = isLocked
+                    ? (HICON)LoadImage(NULL, TEXT("icon_off.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE)
+                    : (HICON)LoadImage(NULL, TEXT("icon.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
+                if (hIcon)
+                {
+                    nid.hIcon = hIcon;
+                    Shell_NotifyIcon(NIM_MODIFY, &nid);
+                    DestroyIcon(hIcon);
+                }
+            }
+            break;
         }
         break;
 
@@ -308,47 +377,63 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     return 0;
 }
 
-void RestoreConfigFromBackup(const std::string& backupFilename, const std::string& destinationFilename) {
+// Function to copy snapkey.backup (meta folder) to the main directory
+void RestoreConfigFromBackup(const std::string& backupFilename, const std::string& destinationFilename)
+{
     std::string sourcePath = "meta\\" + backupFilename;
     std::string destinationPath = destinationFilename;
 
     if (CopyFile(sourcePath.c_str(), destinationPath.c_str(), FALSE)) {
+        // Copy successful
         MessageBox(NULL, TEXT("Default config restored from backup successfully."), TEXT("SnapKey"), MB_ICONINFORMATION | MB_OK);
     } else {
+        // backup.snapkey copy failed
         DWORD error = GetLastError();
         std::string errorMsg = "Failed to restore config from backup.";
         MessageBox(NULL, errorMsg.c_str(), TEXT("SnapKey Error"), MB_ICONERROR | MB_OK);
     }
 }
 
-void CreateDefaultConfig(const std::string& filename) {
+// Restore config.cfg from backup.snapkey
+void CreateDefaultConfig(const std::string& filename)
+{
     std::string backupFilename = "backup.snapkey";
     RestoreConfigFromBackup(backupFilename, filename);
 }
 
-bool LoadConfig(const std::string& filename) {
+// Check for config.cfg
+bool LoadConfig(const std::string& filename)
+{
     std::ifstream configFile(filename);
     if (!configFile.is_open()) {
-        CreateDefaultConfig(filename);
+        CreateDefaultConfig(filename);  // Restore config from backup.snapkey if file doesn't exist
         return false;
     }
 
-    string line;
+    string line; // Check for duplicated keys in the config file
     int id = 0;
     while (getline(configFile, line)) {
         istringstream iss(line);
         string key;
         int value;
         regex secPat(R"(\s*\[Group\]\s*)");
-        if (regex_match(line, secPat)) {
+        if (regex_match(line, secPat))
+        {
             id++;
-        } else if (getline(iss, key, '=') && (iss >> value)) {
-            if (key.find("key") != string::npos) {
-                if (!KeyInfo[value].registered) {
+        }
+        else if (getline(iss, key, '=') && (iss >> value))
+        {
+            if (key.find("key") != string::npos)
+            {
+                if (!KeyInfo[value].registered)
+                {
                     KeyInfo[value].registered = true;
                     KeyInfo[value].group = id;
-                } else {
-                    MessageBox(NULL, TEXT("The config file contains duplicate keys across various groups."), TEXT("SnapKey Error"), MB_ICONEXCLAMATION | MB_OK);
+                }
+                else
+                {
+                    MessageBox(NULL, TEXT("The config file contains duplicate keys across various groups. Please review and correct the setup."), TEXT("SnapKey Error"), MB_ICONEXCLAMATION | MB_OK);
+                    MessageBox(NULL, TEXT("For more information, please view the README file or visit github.com/cafali/SnapKey/wiki."), TEXT("SnapKey Error"), MB_ICONINFORMATION | MB_OK);
                     return false;
                 }
             }
