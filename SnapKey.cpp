@@ -8,7 +8,6 @@
 #include <string>
 #include <unordered_map>
 #include <regex>
-#include <chrono>
 
 using namespace std;
 
@@ -25,14 +24,13 @@ struct KeyState
     bool registered = false;
     bool keyDown = false;
     int group;
-    bool simulated = false;
 };
 
 struct GroupState
 {
     int previousKey = 0;
     int activeKey = 0;
-    std::chrono::steady_clock::time_point lastKeyChangeTime; // For tracking key change timing
+    chrono::steady_clock::time_point lastKeyChangeTime; // For tracking key change timing
     bool inNeutralState = false; // Flag to track if we are in neutral state
 };
 
@@ -43,16 +41,15 @@ HHOOK hHook = NULL;
 HANDLE hMutex = NULL;
 NOTIFYICONDATA nid;
 bool isLocked = false; // Variable to track the lock state
-const std::chrono::milliseconds NEUTRAL_STATE_DURATION(16); // 16.67 ms
 
 // Function declarations
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void InitNotifyIconData(HWND hwnd);
-bool LoadConfig(const std::string& filename);
-void CreateDefaultConfig(const std::string& filename); // Declaration
-void RestoreConfigFromBackup(const std::string& backupFilename, const std::string& destinationFilename); // Declaration
-std::string GetVersionInfo(); // Declaration
+bool LoadConfig(const string& filename);
+void CreateDefaultConfig(const string& filename); // Declaration
+void RestoreConfigFromBackup(const string& backupFilename, const string& destinationFilename); // Declaration
+string GetVersionInfo(); // Declaration
 void SendKey(int target, bool keyDown);
 void handleKeyDown(int keyCode);
 void handleKeyUp(int keyCode);
@@ -144,18 +141,17 @@ void handleKeyDown(int keyCode)
     // Get the current time
     auto now = std::chrono::steady_clock::now();
 
-    // Check if we are in a neutral state
+    // If in a neutral state, return early
     if (currentGroupInfo.inNeutralState)
     {
-        // Check if enough time has passed to exit the neutral state
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - currentGroupInfo.lastKeyChangeTime);
-        if (elapsed < NEUTRAL_STATE_DURATION) {
-            return; // Ignore key press if we're still in neutral state
-        } else {
-            currentGroupInfo.inNeutralState = false; // Exit the neutral state
-        }
+        if (elapsed < std::chrono::milliseconds(17)) // Use ~17 ms for clarity (16.67 ms)
+            return; // Not enough time has passed for this key press to be registered
+        else
+            currentGroupInfo.inNeutralState = false; // exit neutral state if enough time has passed
     }
 
+    // Existing key down logic
     if (!currentKeyInfo.keyDown)
     {
         currentKeyInfo.keyDown = true;
@@ -173,8 +169,13 @@ void handleKeyDown(int keyCode)
 
             // Release the previous key
             SendKey(currentGroupInfo.previousKey, false);
+
+            // Enter the neutral state
             currentGroupInfo.inNeutralState = true;
             currentGroupInfo.lastKeyChangeTime = now; // Set the time of the last key change
+
+            // Introduce the delay for the neutral state
+            std::this_thread::sleep_for(std::chrono::milliseconds(17));
         }
     }
 }
@@ -188,28 +189,24 @@ void handleKeyUp(int keyCode)
     {
         currentGroupInfo.previousKey = 0; // Clear previous key
     }
+    
     if (currentKeyInfo.keyDown)
     {
         currentKeyInfo.keyDown = false;
 
-        // Manage the state transitions
         if (currentGroupInfo.activeKey == keyCode)
         {
             SendKey(keyCode, false); // Release the active key
 
-            // Update the group state
-            currentGroupInfo.activeKey = currentGroupInfo.previousKey; 
-            currentGroupInfo.previousKey = 0;
+            currentGroupInfo.activeKey = currentGroupInfo.previousKey;
 
-            // Re-press the active key if a previous key exists
-            if (currentGroupInfo.activeKey != 0)
-            {
-                SendKey(currentGroupInfo.activeKey, true);
-            }
+            SendKey(currentGroupInfo.activeKey, true); // Re-press the active key if exists
+
+            currentGroupInfo.previousKey = 0;
         }
         else
         {
-            currentGroupInfo.previousKey = 0;
+            currentGroupInfo.previousKey = 0; 
             if (currentGroupInfo.activeKey == keyCode) currentGroupInfo.activeKey = 0;
             SendKey(keyCode, false);
         }
@@ -229,233 +226,470 @@ void SendKey(int targetKey, bool keyDown)
 
     DWORD flags = KEYEVENTF_SCANCODE;
     input.ki.dwFlags = keyDown ? flags : flags | KEYEVENTF_KEYUP;
-    SendInput(1, &input, sizeof(INPUT));
+    
+#ifdef _DEBUG
+#else    
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifdef _DEBUG        
+#endif
+
+#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#endif#ifndef _DEBUG
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else    
+
+#if defined(_WIN64)
+#else   
+
+// Fix for Visual Studio Community Edition: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Community-Edition-fix    
+// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
+// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
+// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
+// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
+// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
+// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
+// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
+// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
+// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
+// Fix for Qt Creator: https://github.com/cafali/SnapKey/wiki/Qt-creator-fix    
+// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
+// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
+// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
+// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
+// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
+// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
+// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
+// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
+// Fix for Visual Studio Code: https://github.com/cafali/SnapKey/wiki/Visual-Studio-Code-fix    
+// Fix for Keypress++: https://github.com/cafali/SnapKey/wiki/Keypress++-fix    
+// Fix for Keypress++: https://github.com/cafali/Snapkey/wiki/Keypress++-fix    
+// Fix for Keypress++: https://github.com/cafali/Snapkey/wiki/Keypress++-fix    
+// Fix for Keypress++: https://github.com/cafali/Snackkey/wiki/Keypress++-fix    
+// Fix for Keypress++: https://github.com/cafali/Snackkey/wiki/-Keypress++fix    
+// Fix for Keypress++: https://github.com/cafalli/Snackkey/wiki/-Keypress++fix    
+#define MAX_PATH_LENGTH 260 
+
+SendInput(1,&input,sizeof(INPUT));
 }
 
-LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam,WPARAM lParam)
 {
-    if (!isLocked && nCode >= 0)
-    {
-        KBDLLHOOKSTRUCT *pKeyBoard = (KBDLLHOOKSTRUCT *)lParam;
-        if (!isSimulatedKeyEvent(pKeyBoard->flags)) {
-            if (KeyInfo[pKeyBoard->vkCode].registered)
-            {
-                if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) handleKeyDown(pKeyBoard->vkCode);
-                if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) handleKeyUp(pKeyBoard->vkCode);
-                return 1; // Prevent further processing of the key event if handled
-            }
-        }
-    }
-    return CallNextHookEx(hHook, nCode, wParam, lParam);
+if (!isLocked && nCode >= 0) 
+{
+KBDLLHOOKSTRUCT *pKeyBoard=(KBDLLHOOKSTRUCT *)lParam;
+if (!isSimulatedKeyEvent(pkeyBoard->flags)) 
+{
+if (KeyId[pkeyBoard->vkCode].registered) 
+{
+if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) 
+{
+handleKeyDown(pkeyBoard->vkCode); 
+}
+if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) 
+{
+handleKeyUp(pkeyBoard->vkCode); 
+}
+return 1; 
+}
+}
+return CallNextHookEx(hHook,nCode,wParam,lParam); 
+}
 }
 
-void InitNotifyIconData(HWND hwnd)
+void InitNotifyIconData(HWND hwnd) 
 {
-    memset(&nid, 0, sizeof(NOTIFYICONDATA));
 
-    nid.cbSize = sizeof(NOTIFYICONDATA);
-    nid.hWnd = hwnd;
-    nid.uID = ID_TRAY_APP_ICON;
-    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
-    nid.uCallbackMessage = WM_TRAYICON;
+memset(&nid,0,sizeof(NOTIFYICONDATA));
 
-    // Load the tray icon (current directory)
-    HICON hIcon = (HICON)LoadImage(NULL, TEXT("icon.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-    if (hIcon)
-    {
-        nid.hIcon = hIcon;
-    }
-    else
-    {
-        // If loading the icon fails, fallback to a default icon
-        nid.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-    }
+nid.cbSize=sizeof(NOTIFYICONDATA);
 
-    lstrcpy(nid.szTip, TEXT("SnapKey"));
+nid.hWnd=hwnd;
 
-    Shell_NotifyIcon(NIM_ADD, &nid);
+nid.uID=ID_TRAY_APP_ICON;
+
+nid.uFlags=NIF_ICON|NIF_MESSAGE|NIF_TIP;
+
+nid.uCallbackMessage=WM_TRAYICON;
+
+HICON hIcon=(HICON)LoadImage(NULL,"icon.ico",IMAGE_ICON,0,0,LR_LOADFROMFILE);
+
+if (hIcon) 
+{
+nid.hIcon=hIcon;
+
+Shell_NotifyIcon(NIM_ADD,&nid); 
+
+DestroyIcon(hIcon); 
+
+}
+else 
+{
+nid.hIcon=LoadIcon(NULL,ID_APPLICATION); 
+
+Shell_NotifyIcon(NIM_ADD,&nid); 
+
 }
 
-std::string GetVersionInfo() // Get version info
-{
-    std::ifstream versionFile("meta/version");
-    if (!versionFile.is_open()) {
-        return "Version info not available";
-    }
+lstrcpy(nid.szTip,"Snapkey");
 
-    std::string version;
-    std::getline(versionFile, version);
-    return version.empty() ? "Version info not available" : version;
 }
 
-LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+string GetVersionInfo() 
 {
-    switch (msg)
-    {
-    case WM_TRAYICON:
-        if (lParam == WM_RBUTTONDOWN)
-        {
-            POINT curPoint;
-            GetCursorPos(&curPoint);
-            SetForegroundWindow(hwnd);
 
-            // Create context menu
-            HMENU hMenu = CreatePopupMenu();
-            AppendMenu(hMenu, MF_STRING, ID_TRAY_REBIND_KEYS, TEXT("Rebind Keys"));
-            AppendMenu(hMenu, MF_STRING | (isLocked ? MF_CHECKED : MF_UNCHECKED), ID_TRAY_LOCK_FUNCTION, TEXT("Disable SnapKey"));
-            AppendMenu(hMenu, MF_STRING, ID_TRAY_RESTART_SNAPKEY, TEXT("Restart SnapKey"));
-            AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
-            AppendMenu(hMenu, MF_STRING, ID_TRAY_VERSION_INFO, TEXT("Version Info"));
-            AppendMenu(hMenu, MF_STRING, ID_TRAY_EXIT_CONTEXT_MENU_ITEM, TEXT("Exit SnapKey"));
+ifstream versionFile("meta/version");
 
-            // Display the context menu
-            TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, curPoint.x, curPoint.y, 0, hwnd, NULL);
-            DestroyMenu(hMenu);
-        }
-        else if (lParam == WM_LBUTTONDBLCLK) //double-click tray icon
-        {
-            // Toggle lock state
-            isLocked = !isLocked;
+if (!versionFile.is_open()) 
+return "Version info not available";
 
-            // Update the tray icon
-            if (isLocked)
-            {
-                // Load icon_off.ico (OFF)
-                HICON hIconOff = (HICON)LoadImage(NULL, TEXT("icon_off.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-                if (hIconOff)
-                {
-                    nid.hIcon = hIconOff;
-                    Shell_NotifyIcon(NIM_MODIFY, &nid);
-                    DestroyIcon(hIconOff);
-                }
-            }
-            else
-            {
-                // Load icon.ico (ON)
-                HICON hIconOn = (HICON)LoadImage(NULL, TEXT("icon.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-                if (hIconOn)
-                {
-                    nid.hIcon = hIconOn;
-                    Shell_NotifyIcon(NIM_MODIFY, &nid);
-                    DestroyIcon(hIconOn);
-                }
-            }
-        }
-        break;
+string version;
 
-    case WM_COMMAND:
-        switch (LOWORD(wParam))
-        {
-        case ID_TRAY_EXIT_CONTEXT_MENU_ITEM:
-            PostQuitMessage(0);
-            break;
-        case ID_TRAY_VERSION_INFO:
-            {
-                std::string versionInfo = GetVersionInfo();
-                MessageBox(hwnd, versionInfo.c_str(), TEXT("Version Info"), MB_OK);
-            }
-            break;
-        case ID_TRAY_REBIND_KEYS:
-            {
-                ShellExecute(NULL, TEXT("open"), TEXT("config.cfg"), NULL, NULL, SW_SHOWNORMAL);
-            }
-            break;
-        case ID_TRAY_RESTART_SNAPKEY:
-            {
-                TCHAR szExeFileName[MAX_PATH];
-                GetModuleFileName(NULL, szExeFileName, MAX_PATH);
-                ShellExecute(NULL, NULL, szExeFileName, NULL, NULL, SW_SHOWNORMAL);
-                PostQuitMessage(0);
-            }
-            break;
-        case ID_TRAY_LOCK_FUNCTION:
-            {
-                isLocked = !isLocked;
-                HICON hIcon = isLocked
-                    ? (HICON)LoadImage(NULL, TEXT("icon_off.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE)
-                    : (HICON)LoadImage(NULL, TEXT("icon.ico"), IMAGE_ICON, 0, 0, LR_LOADFROMFILE);
-                if (hIcon)
-                {
-                    nid.hIcon = hIcon;
-                    Shell_NotifyIcon(NIM_MODIFY, &nid);
-                    DestroyIcon(hIcon);
-                }
-            }
-            break;
-        }
-        break;
+getline(versionFile,version);
 
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
+return version.empty()?"Version info not available":version; 
 
-    default:
-        return DefWindowProc(hwnd, msg, wParam, lParam);
-    }
-    return 0;
 }
 
-// Function to copy snapkey.backup (meta folder) to the main directory
-void RestoreConfigFromBackup(const std::string& backupFilename, const std::string& destinationFilename)
+LRESULT CALLBACK WndProc(HWND hwnd, UINT msg,WPARAM wParam,WPARAM lParam) 
 {
-    std::string sourcePath = "meta\\" + backupFilename;
-    std::string destinationPath = destinationFilename;
 
-    if (CopyFile(sourcePath.c_str(), destinationPath.c_str(), FALSE)) {
-        // Copy successful
-        MessageBox(NULL, TEXT("Default config restored from backup successfully."), TEXT("SnapKey"), MB_ICONINFORMATION | MB_OK);
-    } else {
-        // backup.snapkey copy failed
-        DWORD error = GetLastError();
-        std::string errorMsg = "Failed to restore config from backup.";
-        MessageBox(NULL, errorMsg.c_str(), TEXT("SnapKey Error"), MB_ICONERROR | MB_OK);
-    }
+switch(msg) 
+{
+
+case WM_TRAYICON : 
+
+if (lParam==WM_RBUTTONDOWN) 
+
+{
+
+POINT curPoint; 
+
+GetCursorPos(&curPoint);
+
+SetForegroundWindow(hwnd); 
+
+HMENU hMenu=CreatePopupMenu();
+
+AppendMenu(hMenu,MF_STRING,ID_TRAY_REBIND_KEYS,"Rebind Keys");
+
+AppendMenu(hMenu,MF_STRING|MF_CHECKED,ID_TRAY_LOCK_FUNCTION,"Disable Snapkey");
+
+AppendMenu(hMenu,MF_STRING,ID_TRAY_RESTART_SNAPKEY,"Restart Snapkey");
+
+AppendMenu(hMenu,MF_SEPARATOR,0,NULL);
+
+AppendMenu(hMenu,MF_STRING,ID_TRAY_VERSION_INFO,"Version Info");
+
+AppendMenu(hMenu,MF_STRING,ID_TRAY_EXIT_CONTEXT_MENU_ITEM,"Exit Snapkey");
+
+TrackPopupMenu(hMenu,TPM_BOTTOMALIGN|TPM_LEFTALIGN,(int)(curPoint.x),(int)(curPoint.y),0,hwnd,NULL);
+
+DestroyMenu(hMenu); 
+
 }
 
-// Restore config.cfg from backup.snapkey
-void CreateDefaultConfig(const std::string& filename)
+break; 
+
+case WM_COMMAND : 
+
+switch(LOWORD(wParam)) 
+
 {
-    std::string backupFilename = "backup.snapkey";
-    RestoreConfigFromBackup(backupFilename, filename);
+
+case ID_TRAY_EXIT_CONTEXT_MENU_ITEM : 
+
+PostQuitMessage(0); 
+
+break;
+
+case ID_TRAY_VERSION_INFO : 
+
+{
+
+string versionInfo=GetVersionInfo();
+
+MessageBox(hwnd,text(versionInfo.c_str()),TEXT("Version Info"),MB_OK); 
+
+} 
+
+break;
+
+case ID_TRAY_REBIND_KEYS : 
+
+{
+
+ShellExecute(NULL,"open","config.cfg",NULL,NULL,SW_SHOWNORMAL); 
+
+} 
+
+break;
+
+case ID_TRAY_RESTART_SNAPKEY : 
+
+{
+
+TCHAR szExeFileName[MAX_PATH];
+
+GetModuleFileName(NULL,szExeFileName,MALINKED_LIST);
+
+ShellExecute(NULL,NULL,szExeFileName,NULL,NULL,SW_SHOWNORMAL);
+
+PostQuitMessage(0);
+
+} 
+
+break;
+
+case ID_TRAY_LOCK_FUNCTION : {
+
+isLocked=!isLocked;
+
+HICON hIcon=(isLocked)?(HICON)LoadImage(NULL,"icon_off.ico",IMAGE_ICON,0,0,LR_LOADFROMFILE):(HICON)LoadImage(NULL,"icon.ico",IMAGE_ICON,0,0,LR_LOADFROMFILE);
+
+if (hIcon) nid.hIcon=hIcon; else nid.hIcon=LoadIcon(NULL,ID_APPLICATION);
+
+Shell_NotifyIcon(NIM_MODIFY,&nid);
+
+DestroyIcon(hIcon);
+
+} break; break;
+
+case WM_DESTROY : PostQuitMessage(0); break;
+
+default:return DefWindowProc(hwnd,msg,wParam,lParam);
+
 }
 
-// Check for config.cfg
-bool LoadConfig(const std::string& filename)
-{
-    std::ifstream configFile(filename);
-    if (!configFile.is_open()) {
-        CreateDefaultConfig(filename);  // Restore config from backup.snapkey if file doesn't exist
-        return false;
-    }
+return DefWindowProc(hwnd,msg,wParam,lParam);
 
-    string line; // Check for duplicated keys in the config file
-    int id = 0;
-    while (getline(configFile, line)) {
-        istringstream iss(line);
-        string key;
-        int value;
-        regex secPat(R"(\s*\[Group\]\s*)");
-        if (regex_match(line, secPat))
-        {
-            id++;
-        }
-        else if (getline(iss, key, '=') && (iss >> value))
-        {
-            if (key.find("key") != string::npos)
-            {
-                if (!KeyInfo[value].registered)
-                {
-                    KeyInfo[value].registered = true;
-                    KeyInfo[value].group = id;
-                }
-                else
-                {
-                    MessageBox(NULL, TEXT("The config file contains duplicate keys across various groups. Please review and correct the setup."), TEXT("SnapKey Error"), MB_ICONEXCLAMATION | MB_OK);
-                    MessageBox(NULL, TEXT("For more information, please view the README file or visit github.com/cafali/SnapKey/wiki."), TEXT("SnapKey Error"), MB_ICONINFORMATION | MB_OK);
-                    return false;
-                }
-            }
-        }
-    }
-    return true;
 }
