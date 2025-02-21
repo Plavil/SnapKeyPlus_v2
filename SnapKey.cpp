@@ -30,8 +30,8 @@ struct KeyState
 
 struct GroupState
 {
-    int previousKey;
-    int activeKey;
+    int previousKey = 0;
+    int activeKey = 0;
 };
 
 unordered_map<int, GroupState> GroupInfo;
@@ -137,11 +137,24 @@ int main()
 
 void handleKeyDown(int keyCode)
 {
+    // Get the current time
     auto now = std::chrono::steady_clock::now();
 
     // Check if there has been enough time since the last switch
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSwitchTime).count() < NEUTRAL_FRAME_DURATION) {
-        return; // Not enough time has passed, ignore this key press
+    // Special case for A <-> D and W <-> S
+    if ((keyCode == VK_D || keyCode == VK_A) && 
+        (KeyInfo[VK_D].keyDown || KeyInfo[VK_A].keyDown)) 
+    {
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSwitchTime).count() < NEUTRAL_FRAME_DURATION) {
+            return; // Not enough time has passed, ignore this key press
+        }
+    } 
+    else if ((keyCode == VK_S || keyCode == VK_W) && 
+              (KeyInfo[VK_S].keyDown || KeyInfo[VK_W].keyDown))
+    {
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSwitchTime).count() < NEUTRAL_FRAME_DURATION) {
+            return; // Not enough time has passed, ignore this key press
+        }
     }
 
     KeyState& currentKeyInfo = KeyInfo[keyCode];
@@ -164,7 +177,7 @@ void handleKeyDown(int keyCode)
             SendKey(currentGroupInfo.previousKey, false);
 
             // Update last switch time here after a valid switch
-            lastSwitchTime = std::chrono::steady_clock::now();  
+            lastSwitchTime = std::chrono::steady_clock::now();
         }
     }
 }
