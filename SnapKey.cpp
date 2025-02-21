@@ -20,7 +20,6 @@ using namespace std;
 #define ID_TRAY_RESTART_SNAPKEY         3004
 #define WM_TRAYICON                     (WM_USER + 1)
 
-// Key state structure
 struct KeyState
 {
     bool registered = false;
@@ -29,24 +28,22 @@ struct KeyState
     bool simulated = false;
 };
 
-// Group state structure
 struct GroupState
 {
     int previousKey = 0;
     int activeKey = 0;
+    std::chrono::steady_clock::time_point lastKeyChangeTime; // For tracking key change timing
+    bool inNeutralState = false; // Flag to track if we are in neutral state
 };
 
-unordered_map<int, GroupState> GroupInfo; // Group states
-unordered_map<int, KeyState> KeyInfo; // Key states
+unordered_map<int, GroupState> GroupInfo;
+unordered_map<int, KeyState> KeyInfo;
 
-HHOOK hHook = NULL; // Hook handle
-HANDLE hMutex = NULL; // Mutex handle
-NOTIFYICONDATA nid; // Notification icon data
-bool isLocked = false; // Lock state tracking
-
-// Neutral frame definitions
-const int NEUTRAL_FRAME_DURATION = 16; // Neutral frame delay in milliseconds
-std::chrono::steady_clock::time_point lastSwitchTime;
+HHOOK hHook = NULL;
+HANDLE hMutex = NULL;
+NOTIFYICONDATA nid;
+bool isLocked = false; // Variable to track the lock state
+const std::chrono::milliseconds NEUTRAL_STATE_DURATION(16); // 16.67 ms
 
 // Function declarations
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
@@ -57,8 +54,9 @@ void CreateDefaultConfig(const std::string& filename); // Declaration
 void RestoreConfigFromBackup(const std::string& backupFilename, const std::string& destinationFilename); // Declaration
 std::string GetVersionInfo(); // Declaration
 void SendKey(int target, bool keyDown);
+void handleKeyDown(int keyCode);
+void handleKeyUp(int keyCode);
 
-// Main function
 int main()
 {
     // Load key bindings (config file)
@@ -138,74 +136,76 @@ int main()
     return 0;
 }
 
-// Handle key down events
 void handleKeyDown(int keyCode)
 {
+    KeyState& currentKeyInfo = KeyInfo[keyCode];
+    GroupState& currentGroupInfo = GroupInfo[currentKeyInfo.group];
+
     // Get the current time
     auto now = std::chrono::steady_clock::now();
 
-    // Check if there has been enough time since the last switch
-    // Special case for A <-> D and W <-> S
-    if ((keyCode == 'D' || keyCode == 'A') && 
-        (KeyInfo['D'].keyDown || KeyInfo['A'].keyDown)) 
+    // Check if we are in a neutral state
+    if (currentGroupInfo.inNeutralState)
     {
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSwitchTime).count() < NEUTRAL_FRAME_DURATION) {
-            return; // Not enough time has passed, ignore this key press
-        }
-    } 
-    else if ((keyCode == 'S' || keyCode == 'W') && 
-              (KeyInfo['S'].keyDown || KeyInfo['W'].keyDown))
-    {
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastSwitchTime).count() < NEUTRAL_FRAME_DURATION) {
-            return; // Not enough time has passed, ignore this key press
+        // Check if enough time has passed to exit the neutral state
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - currentGroupInfo.lastKeyChangeTime);
+        if (elapsed < NEUTRAL_STATE_DURATION) {
+            return; // Ignore key press if we're still in neutral state
+        } else {
+            currentGroupInfo.inNeutralState = false; // Exit the neutral state
         }
     }
-
-    KeyState& currentKeyInfo = KeyInfo[keyCode];
-    GroupState& currentGroupInfo = GroupInfo[currentKeyInfo.group];
 
     if (!currentKeyInfo.keyDown)
     {
         currentKeyInfo.keyDown = true;
         SendKey(keyCode, true);
-        
+
         if (currentGroupInfo.activeKey == 0 || currentGroupInfo.activeKey == keyCode)
         {
             currentGroupInfo.activeKey = keyCode;
         }
         else
         {
+            // Transition to the new key, entering neutral state
             currentGroupInfo.previousKey = currentGroupInfo.activeKey;
             currentGroupInfo.activeKey = keyCode;
 
+            // Release the previous key
             SendKey(currentGroupInfo.previousKey, false);
-
-            // Update last switch time here after a valid switch
-            lastSwitchTime = std::chrono::steady_clock::now();
+            currentGroupInfo.inNeutralState = true;
+            currentGroupInfo.lastKeyChangeTime = now; // Set the time of the last key change
         }
     }
 }
 
-// Handle key up events
 void handleKeyUp(int keyCode)
 {
     KeyState& currentKeyInfo = KeyInfo[keyCode];
     GroupState& currentGroupInfo = GroupInfo[currentKeyInfo.group];
+
     if (currentGroupInfo.previousKey == keyCode && !currentKeyInfo.keyDown)
     {
-        currentGroupInfo.previousKey = 0;
+        currentGroupInfo.previousKey = 0; // Clear previous key
     }
     if (currentKeyInfo.keyDown)
     {
         currentKeyInfo.keyDown = false;
-        if (currentGroupInfo.activeKey == keyCode && currentGroupInfo.previousKey != 0)
-        {
-            SendKey(keyCode, false);
 
-            currentGroupInfo.activeKey = currentGroupInfo.previousKey;
+        // Manage the state transitions
+        if (currentGroupInfo.activeKey == keyCode)
+        {
+            SendKey(keyCode, false); // Release the active key
+
+            // Update the group state
+            currentGroupInfo.activeKey = currentGroupInfo.previousKey; 
             currentGroupInfo.previousKey = 0;
 
-            SendKey(currentGroupInfo.activeKey, true);
+            // Re-press the active key if a previous key exists
+            if (currentGroupInfo.activeKey != 0)
+            {
+                SendKey(currentGroupInfo.activeKey, true);
+            }
         }
         else
         {
@@ -216,12 +216,10 @@ void handleKeyUp(int keyCode)
     }
 }
 
-// Check if the key event is simulated
 bool isSimulatedKeyEvent(DWORD flags) {
     return flags & 0x10;
 }
 
-// Send a key event
 void SendKey(int targetKey, bool keyDown)
 {
     INPUT input = {0};
@@ -234,7 +232,6 @@ void SendKey(int targetKey, bool keyDown)
     SendInput(1, &input, sizeof(INPUT));
 }
 
-// Keyboard hook procedure
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (!isLocked && nCode >= 0)
@@ -245,14 +242,13 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
             {
                 if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) handleKeyDown(pKeyBoard->vkCode);
                 if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) handleKeyUp(pKeyBoard->vkCode);
-                return 1;
+                return 1; // Prevent further processing of the key event if handled
             }
         }
     }
     return CallNextHookEx(hHook, nCode, wParam, lParam);
 }
 
-// Initialize the notify icon data for the system tray
 void InitNotifyIconData(HWND hwnd)
 {
     memset(&nid, 0, sizeof(NOTIFYICONDATA));
@@ -280,12 +276,10 @@ void InitNotifyIconData(HWND hwnd)
     Shell_NotifyIcon(NIM_ADD, &nid);
 }
 
-// Get version information
-std::string GetVersionInfo()
+std::string GetVersionInfo() // Get version info
 {
     std::ifstream versionFile("meta/version");
-    if (!versionFile.is_open())
-    {
+    if (!versionFile.is_open()) {
         return "Version info not available";
     }
 
@@ -294,7 +288,6 @@ std::string GetVersionInfo()
     return version.empty() ? "Version info not available" : version;
 }
 
-// Window procedure for handling messages
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -319,7 +312,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN, curPoint.x, curPoint.y, 0, hwnd, NULL);
             DestroyMenu(hMenu);
         }
-        else if (lParam == WM_LBUTTONDBLCLK) // Double-click tray icon
+        else if (lParam == WM_LBUTTONDBLCLK) //double-click tray icon
         {
             // Toggle lock state
             isLocked = !isLocked;
