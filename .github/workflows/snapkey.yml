@@ -33,7 +33,7 @@ jobs:
       run: windres resources.rc -o resources.o
 
     - name: Compile the executable
-      run: g++ -o SnapKey SnapKey.cpp resources.o -mwindows -std=c++11 -static -O3 -march=mavx2
+      run: g++ -o SnapKey SnapKey.cpp resources.o -mwindows -std=c++11 -static -O3 -march=skylake
 
     - name: Upload executable
       uses: actions/upload-artifact@v4
