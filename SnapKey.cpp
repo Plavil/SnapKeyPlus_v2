@@ -145,10 +145,12 @@ void handleKeyDown(int keyCode)
 {
     KeyState& currentKeyInfo = KeyInfo[keyCode];
     GroupState& currentGroupInfo = GroupInfo[currentKeyInfo.group];
+
     if (!currentKeyInfo.keyDown)
     {
         currentKeyInfo.keyDown = true;
         SendKey(keyCode, true);
+
         if (currentGroupInfo.activeKey == 0 || currentGroupInfo.activeKey == keyCode)
         {
             currentGroupInfo.activeKey = keyCode;
@@ -158,7 +160,22 @@ void handleKeyDown(int keyCode)
             currentGroupInfo.previousKey = currentGroupInfo.activeKey;
             currentGroupInfo.activeKey = keyCode;
 
-            addFixedDelay(); // Add a fixed delay before sending the key
+            // Check for key transitions
+            bool applyDelay = false;
+
+            // Check if the previous active key is A or D and the current key is also A or D
+            if ((currentGroupInfo.previousKey == 'A' || currentGroupInfo.previousKey == 'D') &&
+                (keyCode == 'A' || keyCode == 'D'))
+            {
+                applyDelay = true;
+            }
+
+            // Only add delay if necessary
+            if (applyDelay)
+            {
+                addFixedDelay(); // Add a fixed delay before sending the key
+            }
+
             SendKey(currentGroupInfo.previousKey, false);
         }
     }
@@ -168,6 +185,7 @@ void handleKeyUp(int keyCode)
 {
     KeyState& currentKeyInfo = KeyInfo[keyCode];
     GroupState& currentGroupInfo = GroupInfo[currentKeyInfo.group];
+
     if (currentGroupInfo.previousKey == keyCode && !currentKeyInfo.keyDown)
     {
         currentGroupInfo.previousKey = 0;
@@ -187,7 +205,8 @@ void handleKeyUp(int keyCode)
         else
         {
             currentGroupInfo.previousKey = 0;
-            if (currentGroupInfo.activeKey == keyCode) currentGroupInfo.activeKey = 0;
+            if (currentGroupInfo.activeKey == keyCode) 
+                currentGroupInfo.activeKey = 0;
             SendKey(keyCode, false);
         }
     }
@@ -214,11 +233,11 @@ LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
     if (!isLocked && nCode >= 0)
     {
         KBDLLHOOKSTRUCT *pKeyBoard = (KBDLLHOOKSTRUCT *)lParam;
-        if (!isSimulatedKeyEvent(pKeyBoard -> flags)) {
-            if (KeyInfo[pKeyBoard -> vkCode].registered)
+        if (!isSimulatedKeyEvent(pKeyBoard->flags)) {
+            if (KeyInfo[pKeyBoard->vkCode].registered)
             {
-                if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) handleKeyDown(pKeyBoard -> vkCode);
-                if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) handleKeyUp(pKeyBoard -> vkCode);
+                if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) handleKeyDown(pKeyBoard->vkCode);
+                if (wParam == WM_KEYUP || wParam == WM_SYSKEYUP) handleKeyUp(pKeyBoard->vkCode);
                 return 1;
             }
         }
