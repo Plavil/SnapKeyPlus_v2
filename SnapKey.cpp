@@ -31,8 +31,8 @@ struct KeyState
 
 struct GroupState
 {
-    int previousKey;
-    int activeKey;
+    int previousKey = 0; // Инициализация
+    int activeKey = 0;   // Инициализация
 };
 
 unordered_map<int, GroupState> GroupInfo;
@@ -41,7 +41,7 @@ unordered_map<int, KeyState> KeyInfo;
 HHOOK hHook = NULL;
 HANDLE hMutex = NULL;
 NOTIFYICONDATA nid;
-bool isLocked = false; // Variable to track the lock state
+bool isLocked = false; // Переменная для отслеживания состояния блокировки
 
 // Function declarations
 LRESULT CALLBACK KeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
@@ -54,7 +54,7 @@ std::string GetVersionInfo(); // Declaration
 void SendKey(int target, bool keyDown);
 
 // Fixed delay settings (16.67 ms in milliseconds)
-const int fixedDelay = 17; // Rounded to nearest integer for practicality
+const int fixedDelay = 17; // Округлено для практичности
 
 void addFixedDelay()
 {
@@ -163,11 +163,15 @@ void handleKeyDown(int keyCode)
             // Check for key transitions
             bool applyDelay = false;
 
-            // Check if the previous active key is A or D and the current key is also A or D
-            if ((currentGroupInfo.previousKey == 'A' || currentGroupInfo.previousKey == 'D') &&
-                (keyCode == 'A' || keyCode == 'D'))
+            // Проверяем, удерживаются ли W или S
+            if (!(KeyInfo['W'].keyDown || KeyInfo['S'].keyDown))
             {
-                applyDelay = true;
+                // Проверяем переход между A и D
+                if ((currentGroupInfo.previousKey == 'A' || currentGroupInfo.previousKey == 'D') &&
+                    (keyCode == 'A' || keyCode == 'D'))
+                {
+                    applyDelay = true;
+                }
             }
 
             // Only add delay if necessary
@@ -205,7 +209,7 @@ void handleKeyUp(int keyCode)
         else
         {
             currentGroupInfo.previousKey = 0;
-            if (currentGroupInfo.activeKey == keyCode) 
+            if (currentGroupInfo.activeKey == keyCode)
                 currentGroupInfo.activeKey = 0;
             SendKey(keyCode, false);
         }
